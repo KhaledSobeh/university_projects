@@ -1,0 +1,482 @@
+---
+title: "Arrival distribution and Simulatuin data"
+author: "Group 39"
+date: "6/1/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Libraries
+we will need the following libraries: 
+```{r libraries, include=TRUE,echo=TRUE}
+
+library(readxl)
+library(chron)
+library(fitdistrplus)
+library(magrittr)
+library(lubridate)
+
+```
+
+# 1. Fit the data to our needs
+
+## 1.1  Empirical Data
+Empirical data - observations. 
+Here we read the date from an excel file that provided to us.
+In the file there are the arrival time stamps of the first 50 voters in a Big Kalpi and Accessibility Kalpi.
+```{r generate, include=TRUE,echo=TRUE}
+
+sf <- read.csv('voting schedule.csv', header = TRUE)
+sf1 <- sf[,1]
+sf2 <- sf[,2]
+
+```
+
+
+## 1.2  Define function 
+We don't want the arrival time stamp but the gap between two arrivals.
+```{r Define, include=TRUE,echo=FALSE}
+
+arrivalDiff <- function(arrival) {
+  diff <- c()
+  for (i in 2:length(arrival)) {
+    diff <-
+      append(diff,
+             times(arrival[i], format = "h:m:s") - times(arrival[i - 1], format ="h:m:s"))
+  }
+  return(diff)
+}
+
+```
+
+
+## 1.3  Assing data
+Now we need to format the data into usable data in a integer, hour format.
+```{r Assing, include=TRUE,echo=FALSE}
+
+bigKalpi <- arrivalDiff(sf1)
+accessibleKalpi <- arrivalDiff(sf2)
+
+x <- strptime(bigKalpi, format = "%H:%M:%S")
+numericBigKalpi <- (hour(x)*3600 + minute(x) * 60 + second(x))/60
+
+x <- strptime(accessibleKalpi, format = "%H:%M:%S")
+numericAccessibleKalpi <- (hour(x)*3600 + minute(x) * 60 + second(x))/60
+
+```
+
+
+# 2. Fitting
+
+## 2.1 Getting a sence of how the data distributes like 
+Let's see how Big Kalpi looks:
+```{r Getting a sence, include=TRUE,echo=TRUE}
+
+sample <- numericBigKalpi
+par(mfrow = c(1, 3)) # defines 2 plots on the same window
+plot(sample, ylab = "Sample values")
+hist(sample, xlab="seconds", ylab = "Frequency ")
+boxplot(sample)
+
+```
+from the first look, we think that the data did not came from a normal distribution-from the histogram, maby from exponential distribution.
+look's like there are no outliers. and just in case we did not figure them out, we want to keep them because the data might came from a real data collection.
+And how the Accessible Kalpi look like:
+```{r , include=TRUE,echo=TRUE}
+
+sample <- numericAccessibleKalpi
+par(mfrow = c(1, 3)) # defines 2 plots on the same window
+plot(sample, ylab = "Sample values")
+hist(sample, xlab="seconds", ylab = "Frequency ")
+boxplot(sample)
+
+```
+Here it's more clear that the data is more likely got from an exponential distribution. boxcox cannot be trusted, because it belong to normal distribution.
+we can notice that there are some outliers, but we descided to keep them.
+
+## 2.2 Trying to fit Big Kalpi 
+```{r fit Big Kalpi, include=TRUE,echo=TRUE}
+
+sample <- numericBigKalpi
+
+ExpFit <- fitdist(sample, "exp") 
+summary(ExpFit) 
+
+GammaFit <- fitdist(sample, "gamma")
+summary(GammaFit)
+
+```
+
+### 2.2.1 Goodness-of-fit statistics for Big Kalpi 
+Now let's look even further, we will plot the data into a histogram (theoretical density), CDF, QQ-plot and PP-plot.
+```{r}
+
+par(mfrow = c(2, 2))
+legendText <- c("exp", "gamma") # define legend text
+denscomp(list(ExpFit, GammaFit), legendtext = legendText) # histograms
+qqcomp(list(ExpFit, GammaFit), legendtext = legendText)  # qq plot
+cdfcomp(list(ExpFit, GammaFit), legendtext = legendText) # cdf plot
+ppcomp(list(ExpFit, GammaFit), legendtext = legendText) # pp plot
+
+ExpGOF <- gofstat(ExpFit) %>% print()
+ExpGOF$kstest %>% print()
+
+```
+the data more likely to be from a exponential distribution.
+## 2.3 Trying to fit Accessibility Kalpi 
+```{r fit Accessibility Kalpi , include=TRUE,echo=TRUE}
+
+sample <- numericAccessibleKalpi
+
+ExpFit <- fitdist(sample, "exp") 
+summary(ExpFit) 
+
+GammaFit <- fitdist(sample, "gamma")
+summary(GammaFit)
+
+```
+
+### 2.3.2 Goodness-of-fit statistics for Accessibility Kalpi 
+```{r}
+
+par(mfrow = c(2, 2))
+legendText <- c("exp", "gamma") # define legend text
+denscomp(list(ExpFit, GammaFit), legendtext = legendText) # histograms
+qqcomp(list(ExpFit, GammaFit), legendtext = legendText)  # qq plot
+cdfcomp(list(ExpFit, GammaFit), legendtext = legendText) # cdf plot
+ppcomp(list(ExpFit, GammaFit), legendtext = legendText) # pp plot
+
+ExpGOF <- gofstat(ExpFit) %>% print()
+ExpGOF$kstest %>% print()
+
+```
+the data more likely to be from a exponential distribution.
+
+# CONCLUTION
+both distributions were not rejected in both Big and Accessibility Kalpis, we can assume the following:
+
+Big Kalpi is distributed exponentially with lambda = 1.775148	
+
+Accessible Kalpi is also distributed exponentially with lambda = 0.445699
+
+
+\newpage
+
+
+# Analising the KPIs for the current situation
+
+## 1. Import the data
+This is the data regarding the first alternative
+```{r, include=TRUE,echo=TRUE}
+
+data0 <- read.csv("data0.csv",header = T)[,2:3]
+voters0 <- data0$vote_to_left_prob0*100
+renege0 <- data0$reneged_from_left_prob0*100
+
+```
+
+## 2. Fitting
+
+### 2.1.1 Fitting Voter to a Normal distribution
+We must fit the data to a normal distribution. Let's see if it works.
+```{r, include=TRUE,echo=TRUE}
+
+NormFitV <- fitdist(voters0, "norm") 
+summary(NormFitV) 
+
+```
+
+### 2.1.2 Goodness-of-fit statistics for Voter
+Now let's look even further, we will plot the data into a histogram (theoretical density), CDF, QQ-plot and PP-plot.
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitV, legendtext = "norm") # histograms
+qqcomp(NormFitV, legendtext = "norm")  # qq plot
+cdfcomp(NormFitV, legendtext = "norm") # cdf plot
+ppcomp(NormFitV, legendtext = "norm") # pp plot
+
+```
+there are two outliers, and we will remove them. so, we have to remove the same rows in order to be able to use CRN in further analysis. 
+
+```{r}
+xx <- voters0[voters0!=(voters0)[11] & voters0!=(voters0)[12]]
+print(shapiro.test(xx))
+```
+according to Shapiro-Wilk normality test:
+the p-value is 0.2 and above 0.05. So we now know our variable voters0 is normally distributed.
+
+### 2.2.1 Fitting Renege to a Normal distribution
+```{r, include=TRUE,echo=TRUE}
+
+renege0 <- renege0[renege0!=(renege0)[11] & renege0!=(renege0)[12]]
+
+NormFitR <- fitdist(renege0, "norm")
+summary(NormFitR)
+
+```
+
+### 2.2.2 Goodness-of-fit statistics for Renege
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitR, legendtext = "norm") # histograms
+qqcomp(NormFitR, legendtext = "norm")  # qq plot
+cdfcomp(NormFitR, legendtext = "norm") # cdf plot
+ppcomp(NormFitR, legendtext = "norm") # pp plot
+
+print(shapiro.test(renege0))
+
+```
+
+according to Shapiro-Wilk normality test:
+the p-value is 0.53 and above 0.05. So we now know our variable renege0 is normally distributed.
+
+## CONCLUTION
+Both data frames hypothesis has not been rejected, therefor they are both distributed Normally. 
+
+
+\newpage
+
+
+# Analising the KPIs for the first alternative
+
+## 1. Import the data
+This is the data regarding the first alternative
+```{r, include=TRUE,echo=TRUE}
+
+data1 <- read.csv("data1.csv",header = T)[,2:3]
+voters1 <- data1$vote_to_left_prob1*100
+renege1 <- data1$reneged_from_left_prob1*100
+
+renege1 <- renege1[renege1!=(renege1)[11] & renege1!=(renege1)[12]]
+voters1 <- voters1[voters1!=(voters1)[11] & voters1!=(voters1)[12]]
+
+```
+
+
+## 2. Fitting
+
+### 2.1.1 Fitting Voter to a Normal distribution
+We must fit the data to a normal distribution. Let's see if it works.
+```{r, include=TRUE,echo=TRUE}
+
+NormFitV <- fitdist(voters1, "norm") 
+summary(NormFitV) 
+
+```
+
+### 2.1.2 Goodness-of-fit statistics for Voter
+Now let's look even further, we will plot the data into a histogram (theoretical density), CDF, QQ-plot and PP-plot.
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitV, legendtext = "norm") # histograms
+qqcomp(NormFitV, legendtext = "norm")  # qq plot
+cdfcomp(NormFitV, legendtext = "norm") # cdf plot
+ppcomp(NormFitV, legendtext = "norm") # pp plot
+
+print(shapiro.test(voters1))
+
+```
+there is two points that looks like outliers, but we will keep them.
+according to Shapiro-Wilk normality test:
+The data is normal if the p-value is above 0.05. So we now know our variable voters1 is normally distributed.
+
+### 2.2.1 Fitting Renege to a Normal distribution
+```{r, include=TRUE,echo=TRUE}
+
+NormFitR <- fitdist(renege1, "norm")
+summary(NormFitR)
+
+```
+
+### 2.2.2 Goodness-of-fit statistics for Renege
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitR, legendtext = "norm") # histograms
+qqcomp(NormFitR, legendtext = "norm")  # qq plot
+cdfcomp(NormFitR, legendtext = "norm") # cdf plot
+ppcomp(NormFitR, legendtext = "norm") # pp plot
+
+print(shapiro.test(renege1))
+
+```
+we thinks here that there are not outliers.
+according to Shapiro-Wilk normality test:
+the p-value is 0.76 and above 0.05. So we now know our variable renege1 is normally distributed.
+
+## CONCLUTION
+Both data frames hypothesis has not been rejected, therefor they are both distributed Normally. 
+
+
+\newpage
+
+
+# Analising the KPIs for the second alternative
+
+## 1. Import the data
+This is the data regarding the first alternative
+```{r, include=TRUE,echo=TRUE}
+
+data2 <- read.csv("data2.csv",header = T)[,2:3]
+voters2 <- data2$vote_to_left_prob2*100
+renege2 <- data2$reneged_from_left_prob2*100
+
+renege2 <- renege2[renege2!=(renege2)[11] & renege2!=(renege2)[12]]
+voters2 <- voters2[voters2!=(voters2)[11] & voters2!=(voters2)[12]]
+
+```
+
+## 2. Fitting
+
+### 2.1.1 Fitting Voter to a Normal distribution
+We must fit the data to a normal distribution. Let's see if it works.
+```{r, include=TRUE,echo=TRUE}
+
+NormFitV <- fitdist(voters2, "norm") 
+summary(NormFitV) 
+
+```
+
+### 2.1.2 Goodness-of-fit statistics for Voter
+Now let's look even further, we will plot the data into a histogram (theoretical density), CDF, QQ-plot and PP-plot.
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitV, legendtext = "norm") # histograms
+qqcomp(NormFitV, legendtext = "norm")  # qq plot
+cdfcomp(NormFitV, legendtext = "norm") # cdf plot
+ppcomp(NormFitV, legendtext = "norm") # pp plot
+
+print(shapiro.test(voters2))
+
+```
+no outliers here.
+according to Shapiro-Wilk normality test:
+The data is normal if the p-value is above 0.05. So we now know our variable voters2 is normally distributed.
+
+### 2.2.1 Fitting Renege to a Normal distribution
+```{r, include=TRUE,echo=TRUE}
+
+NormFitR <- fitdist(renege2, "norm")
+summary(NormFitR)
+
+```
+
+### 2.2.2 Goodness-of-fit statistics for Renege
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitR, legendtext = "norm") # histograms
+qqcomp(NormFitR, legendtext = "norm")  # qq plot
+cdfcomp(NormFitR, legendtext = "norm") # cdf plot
+ppcomp(NormFitR, legendtext = "norm") # pp plot
+
+print(shapiro.test(renege2))
+
+```
+
+according to Shapiro-Wilk normality test:
+the p-value is 0.07 and above 0.05. So we now know our variable renege2 is normally distributed.
+
+
+\newpage
+
+
+# Analising the KPIs for the third alternative
+
+## 1. Import the data
+This is the data regarding the first alternative
+```{r, include=TRUE,echo=TRUE}
+
+data3 <- read.csv("data3.csv",header = T)[,2:3]
+voters3 <- data3$vote_to_left_prob3*100
+renege3 <- data3$reneged_from_left_prob3*100
+
+renege3 <- renege3[renege3!=(renege3)[11] & renege3!=(renege3)[12]]
+voters3 <- voters3[voters3!=(voters3)[11] & voters3!=(voters3)[12]]
+
+```
+
+## 2. Fitting
+
+### 2.1.1 Fitting Voter to a Normal distribution
+We must fit the data to a normal distribution. Let's see if it works.
+```{r, include=TRUE,echo=TRUE}
+
+NormFitV <- fitdist(voters3, "norm") 
+summary(NormFitV) 
+
+```
+
+### 2.1.2 Goodness-of-fit statistics for Voter
+Now let's look even further, we will plot the data into a histogram (theoretical density), CDF, QQ-plot and PP-plot.
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitV, legendtext = "norm") # histograms
+qqcomp(NormFitV, legendtext = "norm")  # qq plot
+cdfcomp(NormFitV, legendtext = "norm") # cdf plot
+ppcomp(NormFitV, legendtext = "norm") # pp plot
+
+print(shapiro.test(voters3))
+
+```
+generally, no outliers here.
+according to Shapiro-Wilk normality test:
+The data is normal if the p-value is above 0.05. So we now know our variable voters3 is normally distributed.
+
+### 2.2.1 Fitting Renege to a Normal distribution
+```{r, include=TRUE,echo=TRUE}
+
+NormFitR <- fitdist(renege3, "norm")
+summary(NormFitR)
+
+```
+
+### 2.2.2 Goodness-of-fit statistics for Renege
+```{r}
+
+par(mfrow = c(2, 2))
+denscomp(NormFitR, legendtext = "norm") # histograms
+qqcomp(NormFitR, legendtext = "norm")  # qq plot
+cdfcomp(NormFitR, legendtext = "norm") # cdf plot
+ppcomp(NormFitR, legendtext = "norm") # pp plot
+
+print(shapiro.test(renege3))
+
+```
+we can detect two points that's a little far from the line in qqplot, but we will keep them.
+according to Shapiro-Wilk normality test:
+the p-value is 0.49 and above 0.05. So we now know our variable vote_to_left_prob1 is normally distributed.
+
+## CONCLUTION
+Both data frames hypothesis has not been rejected, therefor they are both distributed Normally. 
+
+
+## Now we can get the final data:
+
+```{r}
+data0 <- read.csv("data0.csv",header = T)[,2:3]
+data0 <- data0[-c(11,12),]
+write.csv(data0, "data0ready.csv")
+
+data1 <- read.csv("data1.csv",header = T)[,2:3]
+data1 <- data1[-c(11,12),]
+write.csv(data1, "data1ready.csv")
+
+data2 <- read.csv("data2.csv",header = T)[,2:3]
+data2 <- data2[-c(11,12),]
+write.csv(data2, "data2ready.csv")
+
+data3 <- read.csv("data3.csv",header = T)[,2:3]
+data3 <- data3[-c(11,12),]
+write.csv(data3, "data3ready.csv")
+
+```
